@@ -1,0 +1,213 @@
+// Field Monitoring Platform - Prisma Schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  FIELD_MONITOR
+  CLIENT
+}
+
+enum CampaignStatus {
+  ACTIVE
+  UPCOMING
+  EXPIRED
+  PAUSED
+  TERMINATED
+}
+
+enum CampaignType {
+  STANDARD
+  SHARED
+}
+
+enum MediaType {
+  BILLBOARD
+  TRANSIT
+  STREET_FURNITURE
+  AIRPORT
+  MALL
+  DIGITAL
+}
+
+enum Frequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum PhotoStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SENDING
+}
+
+enum PhotoQuality {
+  GOOD
+  AVERAGE
+  POOR
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      UserRole @default(FIELD_MONITOR)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campaigns       Campaign[]
+  photos          Photo[]
+  notifications   Notification[]
+  sharedByCampaigns SharedCampaign[] @relation("SharedBy")
+  sharedToCampaigns SharedCampaign[] @relation("SharedTo")
+  mediaAssets     MediaAsset[]     @relation("MediaUploads")
+}
+
+model Brand {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  campaigns Campaign[]
+}
+
+model Vendor {
+  id        String   @id @default(cuid())
+  name      String
+  city      String?
+  state     String?
+  createdAt DateTime @default(now())
+
+  sites Site[]
+}
+
+model Campaign {
+  id          String         @id @default(cuid())
+  name        String
+  type        CampaignType   @default(STANDARD)
+  brandId     String
+  brand       Brand          @relation(fields: [brandId], references: [id])
+  startDate   DateTime
+  endDate     DateTime
+  state       String
+  status      CampaignStatus @default(UPCOMING)
+  createdById String
+  createdBy   User           @relation(fields: [createdById], references: [id])
+  popProgress Float          @default(0)
+  estimateNo  String?
+  bufferPct   Float?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  sites       Site[]
+  photos      Photo[]
+  sharedWith  SharedCampaign[]
+  mediaAssets MediaAsset[]
+}
+
+model Monitor {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  sites  Site[]
+  photos Photo[]
+}
+
+model Site {
+  id         String    @id @default(cuid())
+  siteCode   String    @unique
+  mediaType  MediaType
+  locality   String
+  address    String?
+  city       String?
+  state      String?
+  lat        Float?
+  lng        Float?
+  vendorId   String
+  vendor     Vendor    @relation(fields: [vendorId], references: [id])
+  campaignId String
+  campaign   Campaign  @relation(fields: [campaignId], references: [id])
+  frequency  Frequency @default(DAILY)
+  monitorId  String?
+  monitor    Monitor?  @relation(fields: [monitorId], references: [id])
+  isAudited  Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  photos Photo[]
+}
+
+model Photo {
+  id           String       @id @default(cuid())
+  url          String
+  siteId       String
+  site         Site         @relation(fields: [siteId], references: [id])
+  campaignId   String
+  campaign     Campaign     @relation(fields: [campaignId], references: [id])
+  monitorId    String?
+  monitor      Monitor?     @relation(fields: [monitorId], references: [id])
+  uploadedById String?
+  uploadedBy   User?        @relation(fields: [uploadedById], references: [id])
+  clickedAt    DateTime
+  status       PhotoStatus  @default(PENDING)
+  quality      PhotoQuality @default(GOOD)
+  isHidden     Boolean      @default(false)
+  isAudited    Boolean      @default(false)
+  comment      String?
+  creativeName String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model SharedCampaign {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  sharedById String
+  sharedBy   User     @relation("SharedBy", fields: [sharedById], references: [id])
+  sharedToId String
+  sharedTo   User     @relation("SharedTo", fields: [sharedToId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@unique([campaignId, sharedToId])
+}
+
+model MediaAsset {
+  id         String   @id @default(cuid())
+  name       String
+  url        String
+  fileType   String
+  fileSize   Int
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id])
+  uploadedById String
+  uploadedBy User     @relation("MediaUploads", fields: [uploadedById], references: [id])
+  createdAt  DateTime @default(now())
+}
