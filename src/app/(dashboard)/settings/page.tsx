@@ -17,6 +17,13 @@ export default async function SettingsPage() {
 
   if (!user) redirect("/login");
 
+  const teamMembers = user.role === "ADMIN"
+    ? await db.user.findMany({
+        select: { id: true, name: true, email: true, role: true, createdAt: true },
+        orderBy: { createdAt: "asc" },
+      })
+    : [];
+
   return (
     <>
       <Header />
@@ -26,7 +33,10 @@ export default async function SettingsPage() {
           <span>›</span>
           <span className="text-gray-700">Settings</span>
         </div>
-        <SettingsClient user={{ ...user, createdAt: user.createdAt.toISOString() }} />
+        <SettingsClient
+          user={{ ...user, createdAt: user.createdAt.toISOString() }}
+          teamMembers={teamMembers.map((m) => ({ ...m, createdAt: m.createdAt.toISOString() }))}
+        />
       </main>
     </>
   );
