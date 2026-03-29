@@ -7,7 +7,6 @@ import {
   PieChart, Pie, Cell, Legend,
 } from "recharts";
 import { Download, Calendar } from "lucide-react";
-import { formatDateTime } from "@/lib/utils";
 import type { Period } from "@/lib/dateRange";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -39,7 +38,7 @@ interface ActivityRow {
   campaign: string;
   uploadedBy: string;
   status: string;
-  clickedAt: Date;
+  clickedAt: string;
 }
 
 interface Props {
@@ -343,7 +342,7 @@ export default function DashboardClient({
                 <td className="px-4 py-2.5 text-gray-600">{a.locality}</td>
                 <td className="px-4 py-2.5 text-gray-600 max-w-[160px] truncate">{a.campaign}</td>
                 <td className="px-4 py-2.5 text-gray-600">{a.uploadedBy}</td>
-                <td className="px-4 py-2.5 text-gray-500 text-xs whitespace-nowrap">{formatDateTime(a.clickedAt)}</td>
+                <td className="px-4 py-2.5 text-gray-500 text-xs whitespace-nowrap">{a.clickedAt}</td>
                 <td className="px-4 py-2.5">
                   <span className={`text-xs px-2 py-0.5 rounded font-medium ${STATUS_BADGE[a.status] ?? "bg-gray-100 text-gray-600"}`}>
                     {a.status.charAt(0) + a.status.slice(1).toLowerCase()}

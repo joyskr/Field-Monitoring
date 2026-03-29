@@ -4,6 +4,7 @@ import KpiCard from "@/components/dashboard/KpiCard";
 import DashboardClient from "./DashboardClient";
 import { Megaphone, MapPin, Building2, Users, Tag, Monitor } from "lucide-react";
 import { getDateRange, type Period } from "@/lib/dateRange";
+import { formatDateTime } from "@/lib/utils";
 
 interface PageProps {
   searchParams: Promise<{ period?: string; from?: string; to?: string }>;
@@ -110,7 +111,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     campaign: p.campaign.name,
     uploadedBy: p.uploadedBy?.name ?? "Unknown",
     status: p.status,
-    clickedAt: p.clickedAt,
+    clickedAt: formatDateTime(p.clickedAt),
   }));
 
   return (
