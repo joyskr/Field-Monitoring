@@ -3,7 +3,6 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Bypass Next.js internal TS check — we run `tsc --noEmit` separately (Turbopack/Windows path bug)
   typescript: { ignoreBuildErrors: true },
-  output: "standalone",
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "picsum.photos" },
