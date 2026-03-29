@@ -3,7 +3,8 @@ import { NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.NEXTAUTH_SECRET ?? "change-me";
+const JWT_SECRET =
+  process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? "change-me";
 const JWT_EXPIRES = "30d";
 
 export async function POST(req: NextRequest) {
