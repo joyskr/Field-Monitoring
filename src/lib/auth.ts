@@ -46,6 +46,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             email: user.email,
             name: user.name,
             role: user.role,
+            vendorId: user.vendorId,
+            brandId: user.brandId,
           };
         } catch (e) {
           console.error("[auth] authorize error:", e);
@@ -59,6 +61,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (user) {
         token.id = user.id;
         token.role = (user as { role?: string }).role;
+        token.vendorId = (user as { vendorId?: string | null }).vendorId ?? null;
+        token.brandId = (user as { brandId?: string | null }).brandId ?? null;
       }
       return token;
     },
@@ -66,6 +70,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (token && session.user) {
         session.user.id = token.id as string;
         (session.user as { role?: string }).role = token.role as string;
+        (session.user as { vendorId?: string | null }).vendorId = token.vendorId as string | null;
+        (session.user as { brandId?: string | null }).brandId = token.brandId as string | null;
       }
       return session;
     },

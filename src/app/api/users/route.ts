@@ -14,19 +14,27 @@ export async function GET() {
   const session = await requireAdmin();
   if (!session) return Response.json({ error: "Forbidden" }, { status: 403 });
 
-  const users = await db.user.findMany({
-    select: { id: true, name: true, email: true, role: true, createdAt: true },
-    orderBy: { createdAt: "asc" },
-  });
+  const [users, vendors, brands] = await Promise.all([
+    db.user.findMany({
+      select: {
+        id: true, name: true, email: true, role: true, createdAt: true,
+        vendor: { select: { id: true, name: true } },
+        brand: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+    db.vendor.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    db.brand.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+  ]);
 
-  return Response.json(users);
+  return Response.json({ users, vendors, brands });
 }
 
 export async function POST(req: NextRequest) {
   const session = await requireAdmin();
   if (!session) return Response.json({ error: "Forbidden" }, { status: 403 });
 
-  const { name, email, password, role } = await req.json();
+  const { name, email, password, role, vendorId, brandId } = await req.json();
 
   if (!name || !email || !password) {
     return Response.json({ error: "Name, email, and password are required." }, { status: 400 });
@@ -42,8 +50,17 @@ export async function POST(req: NextRequest) {
 
   const hashed = await bcrypt.hash(password, 10);
   const user = await db.user.create({
-    data: { name, email, password: hashed, role: role ?? "FIELD_MONITOR" },
-    select: { id: true, name: true, email: true, role: true, createdAt: true },
+    data: {
+      name, email, password: hashed,
+      role: role ?? "FIELD_MONITOR",
+      ...(vendorId ? { vendorId } : {}),
+      ...(brandId ? { brandId } : {}),
+    },
+    select: {
+      id: true, name: true, email: true, role: true, createdAt: true,
+      vendor: { select: { id: true, name: true } },
+      brand: { select: { id: true, name: true } },
+    },
   });
 
   return Response.json(user, { status: 201 });

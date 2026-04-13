@@ -25,6 +25,8 @@ interface Photo {
   url: string;
   status: string;
   clickedAt: string;
+  rejectionType: string | null;
+  rejectionReason: string | null;
 }
 
 const STATUS_STYLES: Record<string, { label: string; bg: string; color: string }> = {
@@ -151,9 +153,15 @@ export default function MobileSiteDetailPage() {
                     <div
                       className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded-full text-xs font-medium"
                       style={{ backgroundColor: cfg.bg, color: cfg.color }}
+                      title={photo.rejectionReason ?? undefined}
                     >
                       {cfg.label}
                     </div>
+                    {photo.status === "REJECTED" && photo.rejectionReason && (
+                      <div className="absolute top-1 right-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded max-w-[90%] truncate">
+                        {photo.rejectionReason}
+                      </div>
+                    )}
                   </div>
                 );
               })}

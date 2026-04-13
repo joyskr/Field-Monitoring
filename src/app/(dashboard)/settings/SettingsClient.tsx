@@ -12,11 +12,15 @@ interface UserData {
   email: string;
   role: string;
   createdAt: string;
+  vendor?: { id: string; name: string } | null;
+  brand?: { id: string; name: string } | null;
 }
 
 interface Props {
   user: UserData;
   teamMembers: UserData[];
+  vendors: { id: string; name: string }[];
+  brands: { id: string; name: string }[];
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -33,7 +37,7 @@ const ROLE_COLORS: Record<string, string> = {
   CLIENT: "bg-gray-100 text-gray-600",
 };
 
-export default function SettingsClient({ user, teamMembers: initialMembers }: Props) {
+export default function SettingsClient({ user, teamMembers: initialMembers, vendors, brands }: Props) {
   // Profile form
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
@@ -88,6 +92,9 @@ export default function SettingsClient({ user, teamMembers: initialMembers }: Pr
     else { const d = await res.json(); setPwMsg({ type: "error", text: d.error ?? "Failed." }); }
   };
 
+  const [newVendorId, setNewVendorId] = useState("");
+  const [newBrandId, setNewBrandId] = useState("");
+
   const addUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setAddSaving(true);
@@ -95,13 +102,17 @@ export default function SettingsClient({ user, teamMembers: initialMembers }: Pr
     const res = await fetch("/api/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName, email: newEmail, password: newPassword, role: newRole }),
+      body: JSON.stringify({
+        name: newName, email: newEmail, password: newPassword, role: newRole,
+        vendorId: newVendorId || undefined,
+        brandId: newBrandId || undefined,
+      }),
     });
     setAddSaving(false);
     if (res.ok) {
       const created = await res.json();
       setTeamMembers((prev) => [...prev, created]);
-      setNewName(""); setNewEmail(""); setNewPassword(""); setNewRole("FIELD_MONITOR");
+      setNewName(""); setNewEmail(""); setNewPassword(""); setNewRole("FIELD_MONITOR"); setNewVendorId(""); setNewBrandId("");
       setShowAddForm(false);
       setAddMsg({ type: "success", text: `${ROLE_LABELS[newRole] ?? newRole} account created.` });
     } else {
@@ -227,7 +238,7 @@ export default function SettingsClient({ user, teamMembers: initialMembers }: Pr
                 <FormField label="Role" required>
                   <select
                     value={newRole}
-                    onChange={(e) => setNewRole(e.target.value)}
+                    onChange={(e) => { setNewRole(e.target.value); setNewVendorId(""); setNewBrandId(""); }}
                     className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#e63946]"
                   >
                     <option value="FIELD_MONITOR">Field Agent</option>
@@ -236,6 +247,30 @@ export default function SettingsClient({ user, teamMembers: initialMembers }: Pr
                     <option value="ADMIN">Admin</option>
                   </select>
                 </FormField>
+                {newRole === "FIELD_MONITOR" && vendors.length > 0 && (
+                  <FormField label="Assign to Vendor">
+                    <select
+                      value={newVendorId}
+                      onChange={(e) => setNewVendorId(e.target.value)}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#e63946]"
+                    >
+                      <option value="">— Select vendor —</option>
+                      {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                    </select>
+                  </FormField>
+                )}
+                {newRole === "MANAGER" && brands.length > 0 && (
+                  <FormField label="Assign to Brand">
+                    <select
+                      value={newBrandId}
+                      onChange={(e) => setNewBrandId(e.target.value)}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#e63946]"
+                    >
+                      <option value="">— Select brand —</option>
+                      {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                  </FormField>
+                )}
               </div>
               {addMsg && (
                 <p className={`text-sm ${addMsg.type === "success" ? "text-green-600" : "text-red-600"}`}>
@@ -270,9 +305,13 @@ export default function SettingsClient({ user, teamMembers: initialMembers }: Pr
                   <p className="text-sm font-medium text-gray-800 truncate">{member.name}</p>
                   <p className="text-xs text-gray-500 truncate">{member.email}</p>
                 </div>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${ROLE_COLORS[member.role] ?? "bg-gray-100 text-gray-600"}`}>
-                  {ROLE_LABELS[member.role] ?? member.role}
-                </span>
+                <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[member.role] ?? "bg-gray-100 text-gray-600"}`}>
+                    {ROLE_LABELS[member.role] ?? member.role}
+                  </span>
+                  {member.vendor && <span className="text-xs text-gray-400">{member.vendor.name}</span>}
+                  {member.brand && <span className="text-xs text-gray-400">{member.brand.name}</span>}
+                </div>
                 {member.id !== user.id && (
                   <button
                     onClick={() => deleteUser(member.id)}

@@ -9,6 +9,7 @@ export async function GET(req: NextRequest) {
   const sites = await db.site.findMany({
     where: {
       campaign: { status: { in: ["ACTIVE", "UPCOMING"] } },
+      assignedAgents: { some: { id: userId } },
     },
     include: {
       campaign: { select: { id: true, name: true, status: true } },

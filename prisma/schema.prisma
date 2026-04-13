@@ -59,6 +59,13 @@ enum PhotoQuality {
   POOR
 }
 
+enum RejectionType {
+  WRONG_LOCATION
+  BAD_QUALITY
+  WRONG_CREATIVE
+  CUSTOM
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 model User {
@@ -67,15 +74,20 @@ model User {
   password  String
   name      String
   role      UserRole @default(FIELD_MONITOR)
+  vendorId  String?
+  vendor    Vendor?  @relation("VendorAgents", fields: [vendorId], references: [id], onDelete: SetNull)
+  brandId   String?
+  brand     Brand?   @relation("BrandManagers", fields: [brandId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  campaigns       Campaign[]
-  photos          Photo[]
-  notifications   Notification[]
+  campaigns         Campaign[]
+  photos            Photo[]
+  notifications     Notification[]
   sharedByCampaigns SharedCampaign[] @relation("SharedBy")
   sharedToCampaigns SharedCampaign[] @relation("SharedTo")
-  mediaAssets     MediaAsset[]     @relation("MediaUploads")
+  mediaAssets       MediaAsset[]     @relation("MediaUploads")
+  assignedSites     Site[]           @relation("AgentSites")
 }
 
 model Brand {
@@ -84,6 +96,7 @@ model Brand {
   createdAt DateTime @default(now())
 
   campaigns Campaign[]
+  managers  User[]    @relation("BrandManagers")
 }
 
 model Vendor {
@@ -93,7 +106,8 @@ model Vendor {
   state     String?
   createdAt DateTime @default(now())
 
-  sites Site[]
+  sites  Site[]
+  agents User[] @relation("VendorAgents")
 }
 
 model Campaign {
@@ -150,29 +164,32 @@ model Site {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  photos Photo[]
+  photos         Photo[]
+  assignedAgents User[]  @relation("AgentSites")
 }
 
 model Photo {
-  id           String       @id @default(cuid())
-  url          String
-  siteId       String
-  site         Site         @relation(fields: [siteId], references: [id])
-  campaignId   String
-  campaign     Campaign     @relation(fields: [campaignId], references: [id])
-  monitorId    String?
-  monitor      Monitor?     @relation(fields: [monitorId], references: [id])
-  uploadedById String?
-  uploadedBy   User?        @relation(fields: [uploadedById], references: [id])
-  clickedAt    DateTime
-  status       PhotoStatus  @default(PENDING)
-  quality      PhotoQuality @default(GOOD)
-  isHidden     Boolean      @default(false)
-  isAudited    Boolean      @default(false)
-  comment      String?
-  creativeName String?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id              String         @id @default(cuid())
+  url             String
+  siteId          String
+  site            Site           @relation(fields: [siteId], references: [id])
+  campaignId      String
+  campaign        Campaign       @relation(fields: [campaignId], references: [id])
+  monitorId       String?
+  monitor         Monitor?       @relation(fields: [monitorId], references: [id])
+  uploadedById    String?
+  uploadedBy      User?          @relation(fields: [uploadedById], references: [id])
+  clickedAt       DateTime
+  status          PhotoStatus    @default(PENDING)
+  quality         PhotoQuality   @default(GOOD)
+  rejectionType   RejectionType?
+  rejectionReason String?
+  isHidden        Boolean        @default(false)
+  isAudited       Boolean        @default(false)
+  comment         String?
+  creativeName    String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 }
 
 model Notification {
@@ -200,14 +217,14 @@ model SharedCampaign {
 }
 
 model MediaAsset {
-  id         String   @id @default(cuid())
-  name       String
-  url        String
-  fileType   String
-  fileSize   Int
-  campaignId String?
-  campaign   Campaign? @relation(fields: [campaignId], references: [id])
+  id           String    @id @default(cuid())
+  name         String
+  url          String
+  fileType     String
+  fileSize     Int
+  campaignId   String?
+  campaign     Campaign? @relation(fields: [campaignId], references: [id])
   uploadedById String
-  uploadedBy User     @relation("MediaUploads", fields: [uploadedById], references: [id])
-  createdAt  DateTime @default(now())
+  uploadedBy   User      @relation("MediaUploads", fields: [uploadedById], references: [id])
+  createdAt    DateTime  @default(now())
 }

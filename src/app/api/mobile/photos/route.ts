@@ -27,7 +27,9 @@ export async function GET(req: NextRequest) {
       uploadedById: userId,
       ...(siteId ? { siteId } : {}),
     },
-    include: {
+    select: {
+      id: true, url: true, status: true, clickedAt: true,
+      rejectionType: true, rejectionReason: true,
       site: { select: { siteCode: true, locality: true } },
       campaign: { select: { name: true } },
     },

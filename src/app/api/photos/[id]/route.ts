@@ -9,8 +9,16 @@ export async function PATCH(
   const session = await auth();
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
+  const role = (session.user as { role?: string }).role;
+  if (role !== "ADMIN" && role !== "MANAGER") {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { id } = await params;
   const body = await req.json();
+
+  const isRejecting = body.status === "REJECTED";
+  const isApproving = body.status === "APPROVED";
 
   const photo = await db.photo.update({
     where: { id },
@@ -20,6 +28,9 @@ export async function PATCH(
       ...(body.isAudited !== undefined ? { isAudited: body.isAudited } : {}),
       ...(body.comment !== undefined ? { comment: body.comment } : {}),
       ...(body.quality ? { quality: body.quality } : {}),
+      ...(isRejecting && body.rejectionType ? { rejectionType: body.rejectionType } : {}),
+      ...(isRejecting ? { rejectionReason: body.rejectionReason ?? null } : {}),
+      ...(isApproving ? { rejectionType: null, rejectionReason: null } : {}),
     },
   });
 

@@ -17,12 +17,20 @@ export default async function SettingsPage() {
 
   if (!user) redirect("/login");
 
-  const teamMembers = user.role === "ADMIN"
-    ? await db.user.findMany({
-        select: { id: true, name: true, email: true, role: true, createdAt: true },
-        orderBy: { createdAt: "asc" },
-      })
-    : [];
+  const [teamMembers, vendors, brands] = user.role === "ADMIN"
+    ? await Promise.all([
+        db.user.findMany({
+          select: {
+            id: true, name: true, email: true, role: true, createdAt: true,
+            vendor: { select: { id: true, name: true } },
+            brand: { select: { id: true, name: true } },
+          },
+          orderBy: { createdAt: "asc" },
+        }),
+        db.vendor.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+        db.brand.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+      ])
+    : [[], [], []];
 
   return (
     <>
@@ -36,6 +44,8 @@ export default async function SettingsPage() {
         <SettingsClient
           user={{ ...user, createdAt: user.createdAt.toISOString() }}
           teamMembers={teamMembers.map((m) => ({ ...m, createdAt: m.createdAt.toISOString() }))}
+          vendors={vendors}
+          brands={brands}
         />
       </main>
     </>
