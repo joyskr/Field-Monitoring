@@ -1,11 +1,12 @@
-import { auth } from "@/lib/auth";
+import NextAuth from "next-auth";
+import { authConfig } from "@/lib/auth.config";
 import { NextResponse } from "next/server";
 
-// NextAuth v5: wrapping auth() as middleware — req.auth is Session | null
+// Use edge-compatible auth (no Prisma/pg) for middleware.
+// The full auth.ts (with DB) is only used in server components and API routes.
+const { auth } = NextAuth(authConfig);
+
 export default auth((req) => {
-  // All matched routes require a valid NextAuth session.
-  // Mobile API routes (/api/mobile/*) are excluded via the matcher below
-  // because they use their own Bearer-token auth (getMobileUserId).
   if (!req.auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
