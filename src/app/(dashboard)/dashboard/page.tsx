@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { auth } from "@/lib/auth";
 import Header from "@/components/layout/Header";
 import KpiCard from "@/components/dashboard/KpiCard";
 import DashboardClient from "./DashboardClient";
@@ -14,6 +15,17 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const { period = "last-3-months", from, to } = await searchParams;
   const { start, end } = getDateRange(period as Period, from, to);
 
+  const session = await auth();
+  const brandId = (session?.user as { brandId?: string | null } | undefined)?.brandId ?? null;
+  const isManager = session?.user?.role === "MANAGER" && brandId;
+
+  // When role is MANAGER, scope everything to their brand's campaigns
+  const brandCampaignFilter = isManager ? { brand: { id: brandId } } : {};
+  const campaignIds = isManager
+    ? (await db.campaign.findMany({ where: { brandId }, select: { id: true } })).map((c) => c.id)
+    : null;
+  const campaignIdFilter = campaignIds ? { campaignId: { in: campaignIds } } : {};
+
   const [
     campaignCount,
     stateGroups,
@@ -26,18 +38,19 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     recentPhotos,
     photoStatusCounts,
   ] = await Promise.all([
-    db.campaign.count(),
-    db.campaign.groupBy({ by: ["state"] }),
-    db.site.groupBy({ by: ["city"] }),
-    db.vendor.count(),
-    db.brand.count(),
-    db.site.groupBy({ by: ["mediaType"] }),
+    db.campaign.count({ where: brandCampaignFilter }),
+    db.campaign.groupBy({ by: ["state"], where: brandCampaignFilter }),
+    db.site.groupBy({ by: ["city"], where: campaignIds ? { campaignId: { in: campaignIds } } : {} }),
+    isManager ? Promise.resolve(1) : db.vendor.count(),
+    isManager ? Promise.resolve(1) : db.brand.count(),
+    db.site.groupBy({ by: ["mediaType"], where: campaignIds ? { campaignId: { in: campaignIds } } : {} }),
 
     // Top monitors filtered by date range
     db.monitor.findMany({
+      where: campaignIds ? { sites: { some: { campaignId: { in: campaignIds } } } } : {},
       include: {
         photos: {
-          where: { clickedAt: { gte: start, lte: end } },
+          where: { clickedAt: { gte: start, lte: end }, ...campaignIdFilter },
           select: { id: true, status: true },
         },
         sites: { select: { campaignId: true } },
@@ -47,7 +60,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     // Campaign progress for chart
     db.campaign.findMany({
       select: { id: true, name: true, popProgress: true, status: true, startDate: true, endDate: true },
-      where: { status: { in: ["ACTIVE", "UPCOMING", "PAUSED"] } },
+      where: { status: { in: ["ACTIVE", "UPCOMING", "PAUSED"] }, ...brandCampaignFilter },
       orderBy: { popProgress: "desc" },
       take: 8,
     }),
@@ -56,6 +69,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     db.photo.findMany({
       orderBy: { createdAt: "desc" },
       take: 10,
+      where: campaignIds ? { campaignId: { in: campaignIds } } : {},
       include: {
         site: { select: { siteCode: true, locality: true } },
         campaign: { select: { name: true } },
@@ -66,7 +80,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     // Photo status breakdown
     db.photo.groupBy({
       by: ["status"],
-      where: { clickedAt: { gte: start, lte: end } },
+      where: { clickedAt: { gte: start, lte: end }, ...campaignIdFilter },
       _count: { _all: true },
     }),
   ]);

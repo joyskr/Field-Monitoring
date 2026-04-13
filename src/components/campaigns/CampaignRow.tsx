@@ -10,11 +10,14 @@ interface CampaignRowProps {
   createdBy: string;
   type: string;
   brand: string;
+  brandId: string;
   startDate: Date;
   endDate: Date;
   state: string;
   status: string;
   popProgress: number;
+  brands?: { id: string; name: string }[];
+  isAdmin?: boolean;
 }
 
 export default function CampaignRow({
@@ -23,11 +26,14 @@ export default function CampaignRow({
   createdBy,
   type,
   brand,
+  brandId,
   startDate,
   endDate,
   state,
   status,
   popProgress,
+  brands = [],
+  isAdmin = false,
 }: CampaignRowProps) {
   const statusVariant = status.toLowerCase() as Parameters<typeof Badge>[0]["variant"];
 
@@ -48,7 +54,12 @@ export default function CampaignRow({
         <Badge label={status} variant={statusVariant} />
       </td>
       <td className="px-4 py-3">
-        <ActionDropdown campaignId={id} />
+        <ActionDropdown
+          campaignId={id}
+          campaignData={{ id, name, type, brandId, startDate, endDate, state, status }}
+          brands={brands}
+          isAdmin={isAdmin}
+        />
       </td>
       <td className="px-4 py-3">
         <button title="View Map" className="text-gray-400 hover:text-gray-600">

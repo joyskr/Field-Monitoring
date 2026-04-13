@@ -8,6 +8,11 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "Field Monitor",
+    startupImage: "/icons/icon-512.png",
+  },
+  icons: {
+    icon: "/icons/icon.svg",
+    apple: "/icons/icon-192.png",
   },
 };
 

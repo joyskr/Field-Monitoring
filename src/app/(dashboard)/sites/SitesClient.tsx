@@ -34,9 +34,10 @@ interface Props {
   campaigns: Campaign[];
   vendors: Vendor[];
   monitors: Monitor[];
+  isAdmin?: boolean;
 }
 
-export default function SitesClient({ initialSites, campaigns, vendors, monitors }: Props) {
+export default function SitesClient({ initialSites, campaigns, vendors, monitors, isAdmin = false }: Props) {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
   const [editSite, setEditSite] = useState<(Site & { address: string }) | null>(null);
@@ -112,6 +113,7 @@ export default function SitesClient({ initialSites, campaigns, vendors, monitors
           sites={filtered}
           onEdit={handleEdit}
           onDeleted={handleDeleted}
+          isAdmin={isAdmin}
         />
       </div>
 

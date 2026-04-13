@@ -9,6 +9,31 @@ async function requireAdmin() {
   return user?.role === "ADMIN" ? session : null;
 }
 
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await requireAdmin();
+  if (!session) return Response.json({ error: "Forbidden" }, { status: 403 });
+
+  const { id } = await params;
+  const body = await req.json();
+
+  const updated = await db.user.update({
+    where: { id },
+    data: {
+      name: body.name,
+      role: body.role,
+      vendorId: body.vendorId ?? null,
+      brandId: body.brandId ?? null,
+    },
+    select: {
+      id: true, name: true, email: true, role: true, createdAt: true,
+      vendor: { select: { id: true, name: true } },
+      brand: { select: { id: true, name: true } },
+    },
+  });
+
+  return Response.json(updated);
+}
+
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await requireAdmin();
   if (!session) return Response.json({ error: "Forbidden" }, { status: 403 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { User, Lock, Shield, Users, Plus, Trash2 } from "lucide-react";
+import { User, Lock, Shield, Users, Plus, Trash2, Pencil, X } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { FormField, Input } from "@/components/ui/FormField";
 import { formatDate } from "@/lib/utils";
@@ -61,6 +61,44 @@ export default function SettingsClient({ user, teamMembers: initialMembers, vend
   const [addSaving, setAddSaving] = useState(false);
   const [addMsg, setAddMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Edit member
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editRole, setEditRole] = useState("FIELD_MONITOR");
+  const [editVendorId, setEditVendorId] = useState("");
+  const [editBrandId, setEditBrandId] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+
+  const startEdit = (member: UserData) => {
+    setEditId(member.id);
+    setEditName(member.name);
+    setEditRole(member.role);
+    setEditVendorId(member.vendor?.id ?? "");
+    setEditBrandId(member.brand?.id ?? "");
+  };
+
+  const cancelEdit = () => setEditId(null);
+
+  const saveEdit = async (id: string) => {
+    setEditSaving(true);
+    const res = await fetch(`/api/users/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: editName,
+        role: editRole,
+        vendorId: editVendorId || null,
+        brandId: editBrandId || null,
+      }),
+    });
+    setEditSaving(false);
+    if (res.ok) {
+      const updated = await res.json();
+      setTeamMembers((prev) => prev.map((m) => (m.id === id ? updated : m)));
+      setEditId(null);
+    }
+  };
 
   const saveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -297,29 +335,101 @@ export default function SettingsClient({ user, teamMembers: initialMembers, vend
           {/* Members list */}
           <div className="divide-y divide-gray-50">
             {teamMembers.map((member) => (
-              <div key={member.id} className="flex items-center gap-3 px-5 py-3">
-                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-semibold text-sm flex-shrink-0">
-                  {member.name.charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">{member.name}</p>
-                  <p className="text-xs text-gray-500 truncate">{member.email}</p>
-                </div>
-                <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[member.role] ?? "bg-gray-100 text-gray-600"}`}>
-                    {ROLE_LABELS[member.role] ?? member.role}
-                  </span>
-                  {member.vendor && <span className="text-xs text-gray-400">{member.vendor.name}</span>}
-                  {member.brand && <span className="text-xs text-gray-400">{member.brand.name}</span>}
-                </div>
-                {member.id !== user.id && (
-                  <button
-                    onClick={() => deleteUser(member.id)}
-                    disabled={deletingId === member.id}
-                    className="p-1 text-gray-400 hover:text-red-500 disabled:opacity-40 flex-shrink-0"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+              <div key={member.id}>
+                {/* View row */}
+                {editId !== member.id ? (
+                  <div className="flex items-center gap-3 px-5 py-3">
+                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-semibold text-sm flex-shrink-0">
+                      {member.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-800 truncate">{member.name}</p>
+                      <p className="text-xs text-gray-500 truncate">{member.email}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[member.role] ?? "bg-gray-100 text-gray-600"}`}>
+                        {ROLE_LABELS[member.role] ?? member.role}
+                      </span>
+                      {member.vendor && <span className="text-xs text-gray-400">{member.vendor.name}</span>}
+                      {member.brand && <span className="text-xs text-gray-400">{member.brand.name}</span>}
+                    </div>
+                    {member.id !== user.id && (
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => startEdit(member)}
+                          className="p-1 text-gray-400 hover:text-blue-500"
+                          title="Edit"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => deleteUser(member.id)}
+                          disabled={deletingId === member.id}
+                          className="p-1 text-gray-400 hover:text-red-500 disabled:opacity-40"
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Edit row */
+                  <div className="px-5 py-3 bg-blue-50 space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <FormField label="Name">
+                        <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
+                      </FormField>
+                      <FormField label="Role">
+                        <select
+                          value={editRole}
+                          onChange={(e) => { setEditRole(e.target.value); setEditVendorId(""); setEditBrandId(""); }}
+                          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#e63946]"
+                        >
+                          <option value="FIELD_MONITOR">Field Agent</option>
+                          <option value="MANAGER">Manager</option>
+                          <option value="CLIENT">Client</option>
+                          <option value="ADMIN">Admin</option>
+                        </select>
+                      </FormField>
+                      {editRole === "FIELD_MONITOR" && vendors.length > 0 && (
+                        <FormField label="Vendor">
+                          <select
+                            value={editVendorId}
+                            onChange={(e) => setEditVendorId(e.target.value)}
+                            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#e63946]"
+                          >
+                            <option value="">— None —</option>
+                            {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                          </select>
+                        </FormField>
+                      )}
+                      {editRole === "MANAGER" && brands.length > 0 && (
+                        <FormField label="Brand">
+                          <select
+                            value={editBrandId}
+                            onChange={(e) => setEditBrandId(e.target.value)}
+                            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#e63946]"
+                          >
+                            <option value="">— None —</option>
+                            {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                          </select>
+                        </FormField>
+                      )}
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <button onClick={cancelEdit} className="p-1 text-gray-400 hover:text-gray-600">
+                        <X size={14} />
+                      </button>
+                      <button
+                        onClick={() => saveEdit(member.id)}
+                        disabled={editSaving}
+                        className="text-xs bg-[#e63946] text-white px-3 py-1 rounded font-medium disabled:opacity-60 hover:bg-red-700"
+                      >
+                        {editSaving ? "Saving…" : "Save"}
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             ))}

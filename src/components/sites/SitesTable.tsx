@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Users } from "lucide-react";
 import Badge from "@/components/ui/Badge";
+import AgentAssignModal from "./AgentAssignModal";
 
 interface Site {
   id: string;
@@ -26,10 +27,12 @@ interface Props {
   sites: Site[];
   onEdit: (site: Site) => void;
   onDeleted: () => void;
+  isAdmin?: boolean;
 }
 
-export default function SitesTable({ sites, onEdit, onDeleted }: Props) {
+export default function SitesTable({ sites, onEdit, onDeleted, isAdmin = false }: Props) {
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [assignSite, setAssignSite] = useState<{ id: string; siteCode: string } | null>(null);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this site? All associated photos will also be removed.")) return;
@@ -40,6 +43,7 @@ export default function SitesTable({ sites, onEdit, onDeleted }: Props) {
   };
 
   return (
+    <>
     <table className="w-full text-sm">
       <thead>
         <tr className="text-left text-xs text-gray-500 border-b border-gray-100 uppercase tracking-wide">
@@ -74,6 +78,15 @@ export default function SitesTable({ sites, onEdit, onDeleted }: Props) {
               </td>
               <td className="px-4 py-3">
                 <div className="flex items-center gap-1">
+                  {isAdmin && (
+                    <button
+                      onClick={() => setAssignSite({ id: site.id, siteCode: site.siteCode })}
+                      className="p-1 text-gray-400 hover:text-green-600 rounded"
+                      title="Assign Agents"
+                    >
+                      <Users size={14} />
+                    </button>
+                  )}
                   <button
                     onClick={() => onEdit(site)}
                     className="p-1 text-gray-400 hover:text-blue-600 rounded"
@@ -96,5 +109,14 @@ export default function SitesTable({ sites, onEdit, onDeleted }: Props) {
         )}
       </tbody>
     </table>
+
+    {assignSite && (
+      <AgentAssignModal
+        siteId={assignSite.id}
+        siteCode={assignSite.siteCode}
+        onClose={() => setAssignSite(null)}
+      />
+    )}
+    </>
   );
 }

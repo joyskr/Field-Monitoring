@@ -1,12 +1,27 @@
 import { db } from "@/lib/db";
+import { auth } from "@/lib/auth";
 import Header from "@/components/layout/Header";
 import VendorsClient from "./VendorsClient";
 import Link from "next/link";
 import { Home } from "lucide-react";
 
 export default async function VendorsPage() {
+  const session = await auth();
+  const brandId = (session?.user as { brandId?: string | null } | undefined)?.brandId ?? null;
+  const isManager = session?.user?.role === "MANAGER" && brandId;
+
+  const campaignIds = isManager
+    ? (await db.campaign.findMany({ where: { brandId }, select: { id: true } })).map((c) => c.id)
+    : null;
+
   const vendors = await db.vendor.findMany({
-    include: { sites: { select: { id: true } } },
+    where: campaignIds ? { sites: { some: { campaignId: { in: campaignIds } } } } : {},
+    include: {
+      sites: {
+        where: campaignIds ? { campaignId: { in: campaignIds } } : {},
+        select: { id: true },
+      },
+    },
     orderBy: { name: "asc" },
   });
 

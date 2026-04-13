@@ -1,7 +1,9 @@
 import { db } from "@/lib/db";
+import { auth } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import Header from "@/components/layout/Header";
 import SitePanel from "@/components/reports/SitePanel";
+import SiteSwitcher from "@/components/reports/SiteSwitcher";
 import PhotoCard from "@/components/reports/PhotoCard";
 import ReportToolbar from "@/components/reports/ReportToolbar";
 import { formatDateRange } from "@/lib/utils";
@@ -10,34 +12,46 @@ import { Home } from "lucide-react";
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ siteId?: string }>;
 }
 
-export default async function ClientReportPage({ params }: PageProps) {
+export default async function ClientReportPage({ params, searchParams }: PageProps) {
   const { id } = await params;
+  const { siteId } = await searchParams;
+
+  const session = await auth();
+  const brandId = (session?.user as { brandId?: string | null } | undefined)?.brandId ?? null;
+  const isManager = session?.user?.role === "MANAGER" && brandId;
 
   const campaign = await db.campaign.findUnique({
-    where: { id },
+    where: { id, ...(isManager ? { brandId } : {}) },
     include: {
       brand: true,
       sites: {
         include: {
           vendor: true,
           monitor: true,
-          // Client report only shows audited photos
-          photos: {
-            where: { isAudited: true },
-            orderBy: { clickedAt: "asc" },
-          },
+          photos: { orderBy: { clickedAt: "asc" } },
         },
+        orderBy: { siteCode: "asc" },
       },
     },
   });
 
   if (!campaign) return notFound();
 
+  // Client report only shows audited sites
   const auditedSites = campaign.sites.filter((s) => s.isAudited);
-  const allPhotos = auditedSites.flatMap((s) => s.photos);
-  const firstSite = auditedSites[0] ?? campaign.sites[0];
+
+  // Selected site — default to first audited (or first overall)
+  const selectedSite = auditedSites.find((s) => s.id === siteId) ?? auditedSites[0] ?? campaign.sites[0];
+  const sitePhotos = selectedSite ? selectedSite.photos : [];
+
+  const siteSwitcherItems = auditedSites.map((s) => ({
+    id: s.id,
+    siteCode: s.siteCode,
+    locality: s.locality,
+  }));
 
   return (
     <>
@@ -61,6 +75,7 @@ export default async function ClientReportPage({ params }: PageProps) {
               <strong>{formatDateRange(campaign.startDate, campaign.endDate)}</strong>
             </span>
             <span>Audited Sites: <strong>{auditedSites.length}</strong></span>
+            {selectedSite && <span>Site Images: <strong>{sitePhotos.length}</strong></span>}
           </div>
         </div>
 
@@ -73,25 +88,38 @@ export default async function ClientReportPage({ params }: PageProps) {
         />
 
         <div className="flex flex-1 overflow-hidden">
-          {firstSite && (
+          {/* Site switcher — only audited sites */}
+          {auditedSites.length > 0 && (
+            <SiteSwitcher
+              sites={siteSwitcherItems}
+              selectedId={selectedSite?.id ?? ""}
+              campaignId={id}
+              basePath={`/campaigns/${id}/client-report`}
+            />
+          )}
+
+          {/* Site detail panel */}
+          {selectedSite && (
             <SitePanel
-              siteCode={firstSite.siteCode}
-              mediaType={firstSite.mediaType.replace("_", " ")}
-              monitor={firstSite.monitor?.name ?? "—"}
-              locality={firstSite.locality}
-              vendor={firstSite.vendor.name}
-              frequency={firstSite.frequency}
+              siteCode={selectedSite.siteCode}
+              mediaType={selectedSite.mediaType.replace("_", " ")}
+              monitor={selectedSite.monitor?.name ?? "—"}
+              locality={selectedSite.locality}
+              vendor={selectedSite.vendor.name}
+              frequency={selectedSite.frequency}
             />
           )}
 
           <div className="flex-1 overflow-y-auto p-4">
-            {allPhotos.length === 0 ? (
+            {sitePhotos.length === 0 ? (
               <p className="text-gray-400 text-sm text-center mt-12">
-                No audited photos available.
+                {auditedSites.length === 0
+                  ? "No audited sites in this campaign yet."
+                  : "No photos for this site yet."}
               </p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                {allPhotos.map((photo: typeof allPhotos[number]) => (
+                {sitePhotos.map((photo) => (
                   <PhotoCard
                     key={photo.id}
                     id={photo.id}

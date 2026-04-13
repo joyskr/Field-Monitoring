@@ -6,11 +6,24 @@ export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
+  const role = (session.user as { role?: string }).role;
+  const brandId = (session.user as { brandId?: string | null }).brandId ?? null;
+  const isManager = role === "MANAGER" && brandId;
+
   const { searchParams } = req.nextUrl;
   const campaignId = searchParams.get("campaignId");
 
+  // MANAGER: restrict to their brand's campaigns
+  let campaignFilter: { campaignId?: string | { in: string[] } } = {};
+  if (campaignId) {
+    campaignFilter = { campaignId };
+  } else if (isManager) {
+    const ids = await db.campaign.findMany({ where: { brandId }, select: { id: true } });
+    campaignFilter = { campaignId: { in: ids.map((c) => c.id) } };
+  }
+
   const sites = await db.site.findMany({
-    where: campaignId ? { campaignId } : {},
+    where: campaignFilter,
     include: { vendor: true, campaign: true, monitor: true },
     orderBy: { createdAt: "desc" },
   });

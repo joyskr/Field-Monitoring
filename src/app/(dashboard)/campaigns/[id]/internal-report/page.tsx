@@ -1,7 +1,9 @@
 import { db } from "@/lib/db";
+import { auth } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import Header from "@/components/layout/Header";
 import SitePanel from "@/components/reports/SitePanel";
+import SiteSwitcher from "@/components/reports/SiteSwitcher";
 import PhotoCard from "@/components/reports/PhotoCard";
 import ReportToolbar from "@/components/reports/ReportToolbar";
 import PhotoUpload from "@/components/reports/PhotoUpload";
@@ -11,13 +13,19 @@ import { Home } from "lucide-react";
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ siteId?: string }>;
 }
 
-export default async function InternalReportPage({ params }: PageProps) {
+export default async function InternalReportPage({ params, searchParams }: PageProps) {
   const { id } = await params;
+  const { siteId } = await searchParams;
+
+  const session = await auth();
+  const brandId = (session?.user as { brandId?: string | null } | undefined)?.brandId ?? null;
+  const isManager = session?.user?.role === "MANAGER" && brandId;
 
   const campaign = await db.campaign.findUnique({
-    where: { id },
+    where: { id, ...(isManager ? { brandId } : {}) },
     include: {
       brand: true,
       sites: {
@@ -26,6 +34,7 @@ export default async function InternalReportPage({ params }: PageProps) {
           monitor: true,
           photos: { orderBy: { clickedAt: "asc" } },
         },
+        orderBy: { siteCode: "asc" },
       },
     },
   });
@@ -37,8 +46,15 @@ export default async function InternalReportPage({ params }: PageProps) {
   const hiddenCount = allPhotos.filter((p) => p.isHidden).length;
   const auditedCount = campaign.sites.filter((s) => s.isAudited).length;
 
-  // Use first site for the detail panel (in real use this is per-site navigation)
-  const firstSite = campaign.sites[0];
+  // Selected site — default to first
+  const selectedSite = campaign.sites.find((s) => s.id === siteId) ?? campaign.sites[0];
+  const sitePhotos = selectedSite ? selectedSite.photos : [];
+
+  const siteSwitcherItems = campaign.sites.map((s) => ({
+    id: s.id,
+    siteCode: s.siteCode,
+    locality: s.locality,
+  }));
 
   return (
     <>
@@ -61,7 +77,10 @@ export default async function InternalReportPage({ params }: PageProps) {
               Duration:{" "}
               <strong>{formatDateRange(campaign.startDate, campaign.endDate)}</strong>
             </span>
-            <span>Images: <strong>{allPhotos.length}</strong></span>
+            <span>Total Images: <strong>{allPhotos.length}</strong></span>
+            {selectedSite && (
+              <span>Site Images: <strong>{sitePhotos.length}</strong></span>
+            )}
           </div>
         </div>
 
@@ -74,36 +93,47 @@ export default async function InternalReportPage({ params }: PageProps) {
         />
 
         <div className="flex flex-1 overflow-hidden">
-          {/* Site Panel */}
-          {firstSite && (
-            <SitePanel
-              siteCode={firstSite.siteCode}
-              mediaType={firstSite.mediaType.replace("_", " ")}
-              monitor={firstSite.monitor?.name ?? "—"}
-              locality={firstSite.locality}
-              vendor={firstSite.vendor.name}
-              frequency={firstSite.frequency}
+          {/* Site switcher */}
+          {campaign.sites.length > 0 && (
+            <SiteSwitcher
+              sites={siteSwitcherItems}
+              selectedId={selectedSite?.id ?? ""}
+              campaignId={id}
+              basePath={`/campaigns/${id}/internal-report`}
             />
           )}
 
-          {/* Photo Grid */}
+          {/* Site detail panel */}
+          {selectedSite && (
+            <SitePanel
+              siteCode={selectedSite.siteCode}
+              mediaType={selectedSite.mediaType.replace("_", " ")}
+              monitor={selectedSite.monitor?.name ?? "—"}
+              locality={selectedSite.locality}
+              vendor={selectedSite.vendor.name}
+              frequency={selectedSite.frequency}
+            />
+          )}
+
+          {/* Photo grid for selected site */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {/* Upload widget */}
-            {firstSite && (
+            {selectedSite && (
               <PhotoUpload
                 campaignId={id}
-                siteId={firstSite.id}
-                monitorId={firstSite.monitorId ?? undefined}
+                siteId={selectedSite.id}
+                monitorId={selectedSite.monitorId ?? undefined}
                 onUploaded={() => {}}
               />
             )}
-            {allPhotos.length === 0 ? (
+            {sitePhotos.length === 0 ? (
               <p className="text-gray-400 text-sm text-center mt-8">
-                No photos uploaded yet.
+                {campaign.sites.length === 0
+                  ? "No sites added to this campaign yet."
+                  : "No photos uploaded for this site yet."}
               </p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                {allPhotos.map((photo: typeof allPhotos[number]) => (
+                {sitePhotos.map((photo) => (
                   <PhotoCard
                     key={photo.id}
                     id={photo.id}
@@ -111,6 +141,8 @@ export default async function InternalReportPage({ params }: PageProps) {
                     clickedAt={photo.clickedAt}
                     comment={photo.comment}
                     status={photo.status}
+                    rejectionType={photo.rejectionType}
+                    rejectionReason={photo.rejectionReason}
                     isInternal
                   />
                 ))}

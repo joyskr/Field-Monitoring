@@ -1,9 +1,11 @@
 import { db } from "@/lib/db";
+import { auth } from "@/lib/auth";
 import { CampaignStatus } from "@/generated/prisma/client";
 import Header from "@/components/layout/Header";
 import CampaignTabs from "@/components/campaigns/CampaignTabs";
 import CampaignRow from "@/components/campaigns/CampaignRow";
-import { Search, Filter, Download, ArrowLeftRight, Image } from "lucide-react";
+import AddCampaignButton from "@/components/campaigns/AddCampaignButton";
+import { Search, Filter, Download, ArrowLeftRight } from "lucide-react";
 import { Home } from "lucide-react";
 import Link from "next/link";
 
@@ -13,6 +15,17 @@ interface PageProps {
 
 export default async function CampaignsPage({ searchParams }: PageProps) {
   const { tab = "Active", q = "" } = await searchParams;
+
+  const session = await auth();
+  const role = session?.user?.role;
+  const brandId = (session?.user as { brandId?: string | null } | undefined)?.brandId ?? null;
+  const isManager = role === "MANAGER" && brandId;
+  const isAdmin = role === "ADMIN";
+  const brandFilter = isManager ? { brandId } : {};
+
+  const brands = isAdmin
+    ? await db.brand.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } })
+    : [];
 
   const statusMap: Record<string, CampaignStatus> = {
     Active: "ACTIVE",
@@ -26,6 +39,7 @@ export default async function CampaignsPage({ searchParams }: PageProps) {
     db.campaign.findMany({
       where: {
         status: statusMap[tab] ?? "ACTIVE",
+        ...brandFilter,
         ...(q ? { name: { contains: q, mode: "insensitive" } } : {}),
       },
       include: { brand: true, createdBy: true },
@@ -33,6 +47,7 @@ export default async function CampaignsPage({ searchParams }: PageProps) {
     }),
     db.campaign.groupBy({
       by: ["status"],
+      where: brandFilter,
       _count: { _all: true },
     }),
   ]);
@@ -77,7 +92,7 @@ export default async function CampaignsPage({ searchParams }: PageProps) {
               </button>
               <button className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-200 rounded px-3 py-1.5 hover:bg-gray-50">
                 <Download size={13} />
-                Download Expired Campaigns
+                Download Expired
               </button>
               <button className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-200 rounded px-3 py-1.5 hover:bg-gray-50">
                 <ArrowLeftRight size={13} />
@@ -87,6 +102,7 @@ export default async function CampaignsPage({ searchParams }: PageProps) {
                 <Download size={13} />
                 Download Reports
               </button>
+              {isAdmin && <AddCampaignButton brands={brands} />}
             </div>
           </div>
 
@@ -122,11 +138,14 @@ export default async function CampaignsPage({ searchParams }: PageProps) {
                     createdBy={c.createdBy.name}
                     type={c.type}
                     brand={c.brand.name}
+                    brandId={c.brandId}
                     startDate={c.startDate}
                     endDate={c.endDate}
                     state={c.state}
                     status={c.status}
                     popProgress={c.popProgress}
+                    brands={brands}
+                    isAdmin={isAdmin}
                   />
                 ))
               )}

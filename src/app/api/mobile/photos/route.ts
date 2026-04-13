@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 import { uploadToCloud } from "@/lib/cloudinary";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
+import { notifyAdmins } from "@/lib/notify";
 
 async function saveFile(buffer: Buffer, filename: string): Promise<string> {
   if (process.env.CLOUDINARY_URL) {
@@ -71,17 +72,32 @@ export async function POST(req: NextRequest) {
     await db.site.update({ where: { id: siteId }, data: { lat, lng } });
   }
 
-  const photo = await db.photo.create({
-    data: {
-      url,
-      siteId,
-      campaignId,
-      uploadedById: userId,
-      monitorId: site.monitorId ?? undefined,
-      clickedAt: new Date(),
-      status: "PENDING",
-    },
+  const [photo, uploader] = await Promise.all([
+    db.photo.create({
+      data: {
+        url,
+        siteId,
+        campaignId,
+        uploadedById: userId,
+        monitorId: site.monitorId ?? undefined,
+        clickedAt: new Date(),
+        status: "PENDING",
+      },
+    }),
+    db.user.findUnique({ where: { id: userId }, select: { name: true } }),
+  ]);
+
+  // Notify admins (and brand manager) of the new upload — fire and forget
+  const campaign = await db.campaign.findUnique({
+    where: { id: campaignId },
+    select: { name: true, brandId: true },
   });
+  notifyAdmins({
+    title: "New Photo Uploaded",
+    message: `${uploader?.name ?? "An agent"} uploaded a photo for site ${site.siteCode}${campaign ? ` (${campaign.name})` : ""}.`,
+    link: campaign ? `/campaigns/${campaignId}/internal-report?siteId=${siteId}` : undefined,
+    brandId: campaign?.brandId,
+  }).catch(() => {});
 
   return Response.json({ id: photo.id, url: photo.url }, { status: 201 });
 }

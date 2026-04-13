@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { NextRequest } from "next/server";
+import { notifyUser } from "@/lib/notify";
 
 export async function PATCH(
   req: NextRequest,
@@ -32,7 +33,28 @@ export async function PATCH(
       ...(isRejecting ? { rejectionReason: body.rejectionReason ?? null } : {}),
       ...(isApproving ? { rejectionType: null, rejectionReason: null } : {}),
     },
+    include: {
+      site: { select: { siteCode: true, id: true } },
+    },
   });
+
+  // Notify the uploader when their photo is rejected — fire and forget
+  if (isRejecting && photo.uploadedById) {
+    const REJECTION_LABELS: Record<string, string> = {
+      WRONG_LOCATION: "Wrong Location",
+      BAD_QUALITY: "Bad Quality",
+      WRONG_CREATIVE: "Wrong Creative",
+      CUSTOM: "Other",
+    };
+    const typeLabel = body.rejectionType ? REJECTION_LABELS[body.rejectionType] ?? body.rejectionType : "";
+    const reasonPart = body.rejectionReason ? `: "${body.rejectionReason}"` : "";
+    notifyUser({
+      userId: photo.uploadedById,
+      title: "Photo Rejected",
+      message: `Your photo for site ${photo.site.siteCode} was rejected — ${typeLabel}${reasonPart}.`,
+      link: `/mobile/sites/${photo.site.id}`,
+    }).catch(() => {});
+  }
 
   return Response.json(photo);
 }

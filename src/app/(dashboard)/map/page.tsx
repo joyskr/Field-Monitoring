@@ -1,12 +1,27 @@
 import { db } from "@/lib/db";
+import { auth } from "@/lib/auth";
 import Header from "@/components/layout/Header";
 import MapClient from "./MapClient";
 import Link from "next/link";
 import { Home } from "lucide-react";
 
 export default async function MapPage() {
+  const session = await auth();
+  const brandId = (session?.user as { brandId?: string | null } | undefined)?.brandId ?? null;
+  const isManager = session?.user?.role === "MANAGER" && brandId;
+
+  const campaignIds = isManager
+    ? (await db.campaign.findMany({ where: { brandId }, select: { id: true } })).map((c) => c.id)
+    : null;
+
+  const siteFilter = {
+    lat: { not: null },
+    lng: { not: null },
+    ...(campaignIds ? { campaignId: { in: campaignIds } } : {}),
+  };
+
   const sites = await db.site.findMany({
-    where: { lat: { not: null }, lng: { not: null } },
+    where: siteFilter,
     include: {
       campaign: { select: { name: true, status: true } },
       vendor: { select: { name: true } },
@@ -27,10 +42,14 @@ export default async function MapPage() {
     monitorName: s.monitor?.name ?? null,
   }));
 
-  // Stats
-  const allSites = await db.site.count();
+  // Stats scoped to visible campaigns
+  const allSites = await db.site.count(campaignIds ? { where: { campaignId: { in: campaignIds } } } : undefined);
   const mappedSites = sites.length;
-  const campaigns = await db.campaign.groupBy({ by: ["status"], _count: { _all: true } });
+  const campaigns = await db.campaign.groupBy({
+    by: ["status"],
+    where: campaignIds ? { id: { in: campaignIds } } : {},
+    _count: { _all: true },
+  });
   const activeCampaigns = campaigns.find((c: { status: string }) => c.status === "ACTIVE")?._count._all ?? 0;
 
   return (
